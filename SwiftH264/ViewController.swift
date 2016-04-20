@@ -31,7 +31,6 @@ class ViewController: UIViewController {
         
         if let layer = videoLayer {
             layer.frame = CGRectMake(0, 400, 300, 300)
-            //            layer.backgroundColor = UIColor.blueColor().CGColor
             layer.videoGravity = AVLayerVideoGravityResizeAspect
             
             
@@ -125,16 +124,23 @@ class ViewController: UIViewController {
                                            1, sampleSizeArray,
                                            &sampleBuffer)
         
+        
+        
         if let buffer = sampleBuffer, let session = decompressionSession where status == kCMBlockBufferNoErr {
             
-//            let attachments:CFArrayRef? = CMSampleBufferGetSampleAttachmentsArray(buffer, true)
-//            if let attachmentArray = attachments {
-//                let dic = unsafeBitCast(CFArrayGetValueAtIndex(attachmentArray, 0), CFMutableDictionary.self)
-//                
-//                CFDictionarySetValue(dic,
-//                                     unsafeAddressOf(kCMSampleAttachmentKey_DisplayImmediately),
-//                                     unsafeAddressOf(kCFBooleanTrue))
-//            }
+            let attachments:CFArrayRef? = CMSampleBufferGetSampleAttachmentsArray(buffer, true)
+            if let attachmentArray = attachments {
+                let dic = unsafeBitCast(CFArrayGetValueAtIndex(attachmentArray, 0), CFMutableDictionary.self)
+                
+                CFDictionarySetValue(dic,
+                                     unsafeAddressOf(kCMSampleAttachmentKey_DisplayImmediately),
+                                     unsafeAddressOf(kCFBooleanTrue))
+            }
+            
+            dispatch_async(dispatch_get_main_queue(), {
+                self.videoLayer?.enqueueSampleBuffer(buffer)
+                self.videoLayer?.setNeedsDisplay()
+            })
             
             var flagOut = VTDecodeInfoFlags(rawValue: 0)
             var outputBuffer = UnsafeMutablePointer<CVPixelBuffer>.alloc(1)
@@ -208,53 +214,19 @@ class ViewController: UIViewController {
         return true
     }
     
-//    func render(sampleBuffer: CMSampleBuffer) {
-//        
-//        var flagOut = VTDecodeInfoFlags(rawValue: 0)
-//        var outputBuffer:CVPixelBuffer?
-//        
-//        if let session = decompressionSession {
-//            let status = VTDecompressionSessionDecodeFrame(session, sampleBuffer,
-//                                                           VTDecodeFrameFlags._EnableAsynchronousDecompression,
-//                                                           &outputBuffer, &flagOut)
-//            
-//            if(status == kVTInvalidSessionErr) {
-//                print("IOS8VT: Invalid session, reset decoder session");
-//            } else if(status == kVTVideoDecoderBadDataErr) {
-//                print("IOS8VT: decode failed status=\(status)(Bad data)");
-//            } else if(status != noErr) {
-//                print("IOS8VT: decode failed status=\(status)");
-//            }
-//        }
-//        
-//        
-//        self.videoLayer?.enqueueSampleBuffer(sampleBuffer)
-//        dispatch_async(dispatch_get_main_queue()) {
-//            self.videoLayer?.setNeedsDisplay()
-//        }
-//    }
+    func displayDecodedFrame(imageBuffer: CVImageBuffer?) {
+        
+    }
 
 }
 
-private func decompressionSessionDecodeFrameCallback(decompressionOutputRefCon: UnsafeMutablePointer<Void>,
-                                                     _ sourceFrameRefCon: UnsafeMutablePointer<Void>,
-                                                       _ status: OSStatus,
-                                                         _ infoFlags: VTDecodeInfoFlags,
-                                                           _ imageBuffer: CVImageBuffer?,
-                                                             _ presentationTimeStamp: CMTime,
-                                                               _ presentationDuration: CMTime) -> Void {
+private func decompressionSessionDecodeFrameCallback(decompressionOutputRefCon: UnsafeMutablePointer<Void>, _ sourceFrameRefCon: UnsafeMutablePointer<Void>, _ status: OSStatus, _ infoFlags: VTDecodeInfoFlags, _ imageBuffer: CVImageBuffer?, _ presentationTimeStamp: CMTime, _ presentationDuration: CMTime) -> Void {
     
-    //    let streamManager: MovieViewController = unsafeBitCast(decompressionOutputRefCon, MovieViewController.self)
-    //
-    //    if status != noErr {
-    //
-    //        let error = NSError(domain: NSOSStatusErrorDomain, code: Int(status), userInfo: nil)
-    //        print("Decompressed error: \(error)")
-    //    } else {
-    //        print("Decompressed sucessfully");
-    //
-    //        // do something with your resulting CVImageBufferRef that is your decompressed frame
-    //        streamManager.displayDecodedFrame(imageBuffer);
-    //    }
+        let streamManager: ViewController = unsafeBitCast(decompressionOutputRefCon, ViewController.self)
+    
+        if status == noErr {
+            // do something with your resulting CVImageBufferRef that is your decompressed frame
+            streamManager.displayDecodedFrame(imageBuffer);
+        }
 }
 
