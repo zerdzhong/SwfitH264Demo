@@ -95,7 +95,7 @@ class ViewController: UIViewController {
     func receivedRawVideoFrame(inout videoPacket: VideoPacket) {
         
         //replace start code with nal size
-        let nalSize = videoPacket.bufferSize - 4
+        let nalSize = videoPacket.count - 4
         let hexStr = String(format: "%08X", nalSize)
         
         for i in 0...3 {
@@ -103,11 +103,11 @@ class ViewController: UIViewController {
             let endIndex = hexStr.startIndex.advancedBy(2*(i+1))
             let range = startIndex..<endIndex
             if let hex = UInt8(hexStr.substringWithRange(range)) {
-                videoPacket.buffer[i] = hex
+                videoPacket[i] = hex
             }
         }
         
-        let nalType = videoPacket.buffer[4] & 0x1F
+        let nalType = videoPacket[4] & 0x1F
         
         switch nalType {
         case 0x05:
@@ -117,34 +117,34 @@ class ViewController: UIViewController {
             }
         case 0x07:
             print("Nal type is SPS")
-            spsSize = videoPacket.bufferSize - 4
-            sps = Array(videoPacket.buffer[4..<videoPacket.bufferSize])
+            spsSize = videoPacket.count - 4
+            sps = Array(videoPacket[4..<videoPacket.count])
         case 0x08:
             print("Nal type is PPS")
-            ppsSize = videoPacket.bufferSize - 4
-            pps = Array(videoPacket.buffer[4..<videoPacket.bufferSize])
+            ppsSize = videoPacket.count - 4
+            pps = Array(videoPacket[4..<videoPacket.count])
         default:
             print("Nal type is B/P frame")
             decodeVideoPacket(videoPacket)
             break;
         }
         
-        print("Read Nalu size \(videoPacket.bufferSize)");
+        print("Read Nalu size \(videoPacket.count)");
     }
 
     func decodeVideoPacket(videoPacket: VideoPacket) {
         
-        let bufferPointer = UnsafeMutablePointer<UInt8>(videoPacket.buffer)
+        let bufferPointer = UnsafeMutablePointer<UInt8>(videoPacket)
         
         var blockBuffer: CMBlockBuffer?
-        var status = CMBlockBufferCreateWithMemoryBlock(kCFAllocatorDefault,bufferPointer, videoPacket.bufferSize,
+        var status = CMBlockBufferCreateWithMemoryBlock(kCFAllocatorDefault,bufferPointer, videoPacket.count,
                                                         kCFAllocatorNull,
-                                                        nil, 0, videoPacket.bufferSize,
+                                                        nil, 0, videoPacket.count,
                                                         0, &blockBuffer)
         
         if status == kCMBlockBufferNoErr {
             var sampleBuffer: CMSampleBuffer?
-            let sampleSizeArray = [videoPacket.bufferSize]
+            let sampleSizeArray = [videoPacket.count]
             //            let sampleSizeArrayPointer = UnsafePointer<Int>(sampleSizeArray)
             status = CMSampleBufferCreateReady(kCFAllocatorDefault,
                                                blockBuffer,

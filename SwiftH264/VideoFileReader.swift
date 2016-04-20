@@ -8,19 +8,10 @@
 
 import Foundation
 
-struct VideoPacket {
-    var buffer: Array<UInt8>
-    var bufferSize: Int
-    
-    init(size: Int) {
-        bufferSize = size
-        buffer = Array<UInt8>(count:size, repeatedValue: 0)
-    }
-}
+typealias VideoPacket = Array<UInt8>
 
 class VideoFileReader: NSObject {
     
-//    var bufferSize: Int = 0
     let bufferCap: Int = 512 * 1024
     var streamBuffer = Array<UInt8>()
     
@@ -55,9 +46,7 @@ class VideoFileReader: NSObject {
             while ((startIndex + 3) < streamBuffer.count) {
                 if Array(streamBuffer[startIndex...startIndex+3]) == startCode {
                     
-                    var packet = VideoPacket(size: startIndex)
-                    
-                    packet.buffer = Array(streamBuffer[0..<startIndex])
+                    let packet = Array(streamBuffer[0..<startIndex])
                     streamBuffer.removeRange(0..<startIndex)
                     
                     return packet
