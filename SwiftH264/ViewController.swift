@@ -124,8 +124,6 @@ class ViewController: UIViewController {
                                            1, sampleSizeArray,
                                            &sampleBuffer)
         
-        
-        
         if let buffer = sampleBuffer, let session = decompressionSession where status == kCMBlockBufferNoErr {
             
             let attachments:CFArrayRef? = CMSampleBufferGetSampleAttachmentsArray(buffer, true)
@@ -137,11 +135,15 @@ class ViewController: UIViewController {
                                      unsafeAddressOf(kCFBooleanTrue))
             }
             
+            
+            //diaplay with AVSampleBufferDisplayLayer
+            self.videoLayer?.enqueueSampleBuffer(buffer)
+            
             dispatch_async(dispatch_get_main_queue(), {
-                self.videoLayer?.enqueueSampleBuffer(buffer)
                 self.videoLayer?.setNeedsDisplay()
             })
             
+            // or decompression to CVPixcelBuffer
             var flagOut = VTDecodeInfoFlags(rawValue: 0)
             var outputBuffer = UnsafeMutablePointer<CVPixelBuffer>.alloc(1)
             
