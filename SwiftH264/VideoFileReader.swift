@@ -15,15 +15,15 @@ class VideoFileReader: NSObject {
     let bufferCap: Int = 512 * 1024
     var streamBuffer = Array<UInt8>()
     
-    var fileStream: NSInputStream?
+    var fileStream: InputStream?
     
     let startCode: [UInt8] = [0,0,0,1]
     
-    func openVideoFile(fileURL: NSURL) {
+    func openVideoFile(_ fileURL: URL) {
 
         streamBuffer = [UInt8]()
         
-        fileStream = NSInputStream(URL: fileURL)
+        fileStream = InputStream(url: fileURL)
         fileStream?.open()
     }
     
@@ -47,7 +47,7 @@ class VideoFileReader: NSObject {
                 if Array(streamBuffer[startIndex...startIndex+3]) == startCode {
                     
                     let packet = Array(streamBuffer[0..<startIndex])
-                    streamBuffer.removeRange(0..<startIndex)
+                    streamBuffer.removeSubrange(0..<startIndex)
                     
                     return packet
                 }
@@ -61,15 +61,15 @@ class VideoFileReader: NSObject {
         }
     }
     
-    private func readStremData() -> Int{
+    fileprivate func readStremData() -> Int{
         
-        if let stream = fileStream where stream.hasBytesAvailable{
+        if let stream = fileStream, stream.hasBytesAvailable{
             
-            var tempArray = Array<UInt8>(count: bufferCap, repeatedValue: 0)
+            var tempArray = Array<UInt8>(repeating: 0, count: bufferCap)
             let bytes = stream.read(&tempArray, maxLength: bufferCap)
             
             if bytes > 0 {
-                streamBuffer.appendContentsOf(Array(tempArray[0..<bytes]))
+                streamBuffer.append(contentsOf: Array(tempArray[0..<bytes]))
             }
             
             return bytes

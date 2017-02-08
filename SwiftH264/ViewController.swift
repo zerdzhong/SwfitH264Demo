@@ -12,8 +12,8 @@ import AVFoundation
 
 class ViewController: UIViewController {
     
-    var formatDesc: CMVideoFormatDescriptionRef?
-    var decompressionSession: VTDecompressionSessionRef?
+    var formatDesc: CMVideoFormatDescription?
+    var decompressionSession: VTDecompressionSession?
     var videoLayer: AVSampleBufferDisplayLayer?
     
     var spsSize: Int = 0
@@ -30,15 +30,15 @@ class ViewController: UIViewController {
         videoLayer = AVSampleBufferDisplayLayer()
         
         if let layer = videoLayer {
-            layer.frame = CGRectMake(0, 400, 300, 300)
+            layer.frame = CGRect(x: 0, y: 400, width: 300, height: 300)
             layer.videoGravity = AVLayerVideoGravityResizeAspect
             
             
-            let _CMTimebasePointer = UnsafeMutablePointer<CMTimebase?>.alloc(1)
+            let _CMTimebasePointer = UnsafeMutablePointer<CMTimebase?>.allocate(capacity: 1)
             let status = CMTimebaseCreateWithMasterClock( kCFAllocatorDefault, CMClockGetHostTimeClock(),  _CMTimebasePointer )
-            layer.controlTimebase = _CMTimebasePointer.memory
+            layer.controlTimebase = _CMTimebasePointer.pointee
             
-            if let controlTimeBase = layer.controlTimebase where status == noErr {
+            if let controlTimeBase = layer.controlTimebase, status == noErr {
                 CMTimebaseSetTime(controlTimeBase, kCMTimeZero);
                 CMTimebaseSetRate(controlTimeBase, 1.0);
             }
@@ -49,16 +49,15 @@ class ViewController: UIViewController {
 
     }
 
-    @IBAction func startClicked(sender: UIButton) {
-        
-        dispatch_async(dispatch_get_global_queue(0, 0)) { 
-            let filePath = NSBundle.mainBundle().pathForResource("mtv", ofType: "h264")
-            let url = NSURL(fileURLWithPath: filePath!)
+    @IBAction func startClicked(_ sender: UIButton) {
+        DispatchQueue.global().async {
+            let filePath = Bundle.main.path(forResource: "mtv", ofType: "h264")
+            let url = URL(fileURLWithPath: filePath!)
             self.decodeFile(url)
         }
     }
     
-    func decodeFile(fileURL: NSURL) {
+    func decodeFile(_ fileURL: URL) {
         
         let videoReader = VideoFileReader()
         videoReader.openVideoFile(fileURL)
@@ -69,7 +68,7 @@ class ViewController: UIViewController {
         
     }
     
-    func receivedRawVideoFrame(inout videoPacket: VideoPacket) {
+    func receivedRawVideoFrame(_ videoPacket: inout VideoPacket) {
         
         //replace start code with nal size
         var biglen = CFSwapInt32HostToBig(UInt32(videoPacket.count - 4))
@@ -100,9 +99,9 @@ class ViewController: UIViewController {
         print("Read Nalu size \(videoPacket.count)");
     }
 
-    func decodeVideoPacket(videoPacket: VideoPacket) {
+    func decodeVideoPacket(_ videoPacket: VideoPacket) {
         
-        let bufferPointer = UnsafeMutablePointer<UInt8>(videoPacket)
+        let bufferPointer = UnsafeMutablePointer<UInt8>(mutating: videoPacket)
         
         var blockBuffer: CMBlockBuffer?
         var status = CMBlockBufferCreateWithMemoryBlock(kCFAllocatorDefault,bufferPointer, videoPacket.count,
@@ -124,28 +123,28 @@ class ViewController: UIViewController {
                                            1, sampleSizeArray,
                                            &sampleBuffer)
         
-        if let buffer = sampleBuffer, let session = decompressionSession where status == kCMBlockBufferNoErr {
+        if let buffer = sampleBuffer, let session = decompressionSession, status == kCMBlockBufferNoErr {
             
-            let attachments:CFArrayRef? = CMSampleBufferGetSampleAttachmentsArray(buffer, true)
+            let attachments:CFArray? = CMSampleBufferGetSampleAttachmentsArray(buffer, true)
             if let attachmentArray = attachments {
-                let dic = unsafeBitCast(CFArrayGetValueAtIndex(attachmentArray, 0), CFMutableDictionary.self)
+                let dic = unsafeBitCast(CFArrayGetValueAtIndex(attachmentArray, 0), to: CFMutableDictionary.self)
                 
                 CFDictionarySetValue(dic,
-                                     unsafeAddressOf(kCMSampleAttachmentKey_DisplayImmediately),
-                                     unsafeAddressOf(kCFBooleanTrue))
+                                     Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(),
+                                     Unmanaged.passUnretained(kCFBooleanTrue).toOpaque())
             }
             
             
             //diaplay with AVSampleBufferDisplayLayer
-            self.videoLayer?.enqueueSampleBuffer(buffer)
+            self.videoLayer?.enqueue(buffer)
             
-            dispatch_async(dispatch_get_main_queue(), {
+            DispatchQueue.main.async(execute: {
                 self.videoLayer?.setNeedsDisplay()
             })
             
             // or decompression to CVPixcelBuffer
             var flagOut = VTDecodeInfoFlags(rawValue: 0)
-            var outputBuffer = UnsafeMutablePointer<CVPixelBuffer>.alloc(1)
+            var outputBuffer = UnsafeMutablePointer<CVPixelBuffer>.allocate(capacity: 1)
             
             status = VTDecompressionSessionDecodeFrame(session, buffer,
                                                        [._EnableAsynchronousDecompression],
@@ -181,7 +180,7 @@ class ViewController: UIViewController {
             
             let status = CMVideoFormatDescriptionCreateFromH264ParameterSets(kCFAllocatorDefault, 2, parameterSetPointers, parameterSetSizes, 4, &formatDesc)
             
-            if let desc = formatDesc where status == noErr {
+            if let desc = formatDesc, status == noErr {
                 
                 if let session = decompressionSession {
                     VTDecompressionSessionInvalidate(session)
@@ -192,11 +191,11 @@ class ViewController: UIViewController {
                 
                 let decoderParameters = NSMutableDictionary()
                 let destinationPixelBufferAttributes = NSMutableDictionary()
-                destinationPixelBufferAttributes.setValue(NSNumber(unsignedInt: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange), forKey: kCVPixelBufferPixelFormatTypeKey as String)
+                destinationPixelBufferAttributes.setValue(NSNumber(value: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange as UInt32), forKey: kCVPixelBufferPixelFormatTypeKey as String)
                 
                 var outputCallback = VTDecompressionOutputCallbackRecord()
                 outputCallback.decompressionOutputCallback = decompressionSessionDecodeFrameCallback
-                outputCallback.decompressionOutputRefCon = UnsafeMutablePointer<Void>(unsafeAddressOf(self))
+                outputCallback.decompressionOutputRefCon = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
                 
                 let status = VTDecompressionSessionCreate(kCFAllocatorDefault,
                                                           desc, decoderParameters,
@@ -216,15 +215,15 @@ class ViewController: UIViewController {
         return true
     }
     
-    func displayDecodedFrame(imageBuffer: CVImageBuffer?) {
+    func displayDecodedFrame(_ imageBuffer: CVImageBuffer?) {
         
     }
 
 }
 
-private func decompressionSessionDecodeFrameCallback(decompressionOutputRefCon: UnsafeMutablePointer<Void>, _ sourceFrameRefCon: UnsafeMutablePointer<Void>, _ status: OSStatus, _ infoFlags: VTDecodeInfoFlags, _ imageBuffer: CVImageBuffer?, _ presentationTimeStamp: CMTime, _ presentationDuration: CMTime) -> Void {
+private func decompressionSessionDecodeFrameCallback(_ decompressionOutputRefCon: UnsafeMutableRawPointer?, _ sourceFrameRefCon: UnsafeMutableRawPointer?, _ status: OSStatus, _ infoFlags: VTDecodeInfoFlags, _ imageBuffer: CVImageBuffer?, _ presentationTimeStamp: CMTime, _ presentationDuration: CMTime) -> Void {
     
-        let streamManager: ViewController = unsafeBitCast(decompressionOutputRefCon, ViewController.self)
+        let streamManager: ViewController = unsafeBitCast(decompressionOutputRefCon, to: ViewController.self)
     
         if status == noErr {
             // do something with your resulting CVImageBufferRef that is your decompressed frame
